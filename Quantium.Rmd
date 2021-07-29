@@ -1,0 +1,207 @@
+---
+title: "Quantium Virtual Internship - Retail Strategy and Analytics - Task 1"
+output: html_notebook
+---
+
+
+```{r  setup, include=FALSE}
+# set options for R markdown knitting
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(linewidth=80)
+```
+
+
+```{r  knitr line wrap setup, include=FALSE}
+# set up line wrapping in MD knit output
+library(knitr)
+hook_output = knit_hooks$get("output")
+knit_hooks$set(output = function(x, options)
+{
+ # this hook is used only when the linewidth option is not NULL
+ if (!is.null(n <- options$linewidth))
+ {
+ x = knitr:::split_lines(x)
+ # any lines wider than n should be wrapped
+ if (any(nchar(x) > n))
+ x = strwrap(x, width = n)
+ x = paste(x, collapse = "\n")
+ }
+ hook_output(x, options)
+})
+
+```
+
+## Load required libraries and datasets
+
+```{r 0 Load Libraries, results = 'hide'}
+
+#### Example code to install packages
+install.packages("data.table")
+#### Load required libraries
+library(data.table)
+library(ggplot2)
+library(ggmosaic)
+library(readr)
+library(tm)
+library(qdap)
+
+```
+#### Point the filePath to where you have downloaded the datasets to and
+#### assign the data files to data.tables
+
+```{r}
+getwd()
+```
+
+
+```{r}
+
+filePath <- "/Volumes/Seagate_Haykay/Quantium Analytics"
+transactionData <- fread(paste0(filePath,"/QVI_transaction_data.csv"))
+customerData <- fread(paste0(filePath,"/QVI_purchase_behaviour.csv"))
+```
+
+
+## Exploratory data analysis
+The first step in any analysis is to first understand the data. Let's take a look
+at each of the datasets provided.
+### Examining transaction data
+We can use `str()` to look at the format of each column and see a sample of the
+data. As we have read in the dataset as a `data.table` object, we can also run
+`transactionData` in the console to see a sample of the data or use
+`head(transactionData)` to look at the first 10 rows.
+```{r Examining transaction data}
+#### Examine transaction data
+head(transactionData)
+```
+
+```{r Examining transaction data}
+#### Examine customer data
+head(customerData)
+```
+Let's check if columns we would expect to be numeric are in numeric form and date
+columns are in date format.
+```{r Convert DATE to date format}
+#### Convert DATE column to a date format
+#### A quick search online tells us that CSV and Excel integer dates begin on 30 Dec 1899
+transactionData$DATE <- as.Date(transactionData$DATE, origin = "1899-12-30")
+head(transactionData)
+```
+We should check that we are looking at the right products by examining PROD_NAME.
+
+```{r Summary of PROD_NAME}
+#### Examine PROD_NAME
+summary(transactionData$PROD_NAME)
+newPROD_NAME <- (transactionData$PROD_NAME)
+head(newPROD_NAME)
+```
+
+Looks like we are definitely looking at potato chips but how can we check that
+these are all chips? We can do some basic text analysis by summarising the
+individual words in the product name.
+```{r Further examine PROD_NAME}
+#### Examine the words in PROD_NAME to see if there are any incorrect entries
+#### such as products that are not chips
+productWords <- data.table(unlist(strsplit(unique(transactionData[, PROD_NAME]), "
+")))
+setnames(productWords, 'words')
+```
+
+As we are only interested in words that will tell us if the product is chips or
+not, let's remove all words with digits and special characters such as '&' from our
+set of product words. We can do this using `grepl()`.
+
+```{r}
+# Remove digits, and special characters, and then sort the distinct words by frequency of occurrence.
+
+#### Removing digits
+No.digits <- data.table(gsub("\\w*[0-9]+\\w*", "", newPROD_NAME))
+head(No.digits)
+```
+
+```{r}
+#### Removing special characters
+# as.data.frame(gsub("[[:punct:]]", "", as.matrix(df))) 
+No.specialchar.digits <- as.data.frame(gsub("[[:punct:]]", "", as.matrix(No.digits)))
+setnames(No.specialchar.digits, 'PROD_NAME_NO_CHAR')
+head(No.specialchar.digits)
+```
+
+collapse column into one giant string
+
+```{r}
+review_text <- paste(No.specialchar.digits$PROD_NAME_NO_CHAR, collapse=" ")
+```
+
+```{r}
+review_text
+```
+
+
+```{r}
+# setting up source and corpus
+review_source <- VectorSource(review_text)
+corpus <- Corpus(review_source)
+```
+
+
+```{r}
+# Cleaning
+corpus <- tm_map(corpus, content_transformer(tolower))
+corpus <- tm_map(corpus, removePunctuation)
+corpus <- tm_map(corpus, stripWhitespace)
+corpus <- tm_map(corpus, removeWords, stopwords(kind = "en"))
+```
+
+
+```{r}
+# Making a document-term matrix
+dtm <- DocumentTermMatrix(corpus)
+dtm2 <- as.matrix(dtm)
+```
+
+
+```{r}
+# finding the most frequent term
+frequency <- colSums(dtm2)
+freq <- sort(frequency, decreasing = TRUE)
+freq
+```
+
+
+
+```{r}
+#### Let's look at the most common words by counting the number of times a word appears and
+# library(tm)
+# library(qdap)
+#library(tidyverse)
+#library(tidytext)
+
+
+#create stopwords DF
+rus_stopwords = data.frame(word = stopwords("ru"))
+
+
+new_df <- video %>% unnest_tokens(word, text) %>% anti_join(rus_stopwords)
+
+
+# - anti_join  - functoin to remove stopwords
+#video - is name of dataframe
+#word - is name of new field
+#text - is just a filed with our text
+
+frequency_dataframe = new_df %>% count(word) %>% arrange(desc(n))
+
+
+short_dataframe = head(frequency_dataframe, 20)
+
+
+ggplot(short_dataframe, aes(x = word, y = n, fill = word)) + geom_col() 
+
+```
+
+
+```{r}
+#### sorting them by this frequency in order of highest to lowest frequency
+```
+
