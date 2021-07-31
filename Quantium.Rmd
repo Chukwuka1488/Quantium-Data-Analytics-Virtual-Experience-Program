@@ -36,27 +36,39 @@ knit_hooks$set(output = function(x, options)
 ```{r 0 Load Libraries, results = 'hide'}
 
 #### Example code to install packages
-install.packages("data.table")
+#install.packages("data.table")
 #### Load required libraries
 library(data.table)
 library(ggplot2)
 library(ggmosaic)
 library(readr)
 library(tm)
-library(qdap)
+library(wordcloud)
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(gganimate)
+library(tidyverse)
+#library(qdap)
 
 ```
 #### Point the filePath to where you have downloaded the datasets to and
 #### assign the data files to data.tables
 
 ```{r}
+filePath <- "/Volumes/Seagate_Haykay/Quantium_Data_Analytics"
+setwd(filePath)
+```
+```{r}
 getwd()
 ```
 
 
+
+
 ```{r}
 
-filePath <- "/Volumes/Seagate_Haykay/Quantium Analytics"
+filePath <- "/Volumes/Seagate_Haykay/Quantium_Data_Analytics"
 transactionData <- fread(paste0(filePath,"/QVI_transaction_data.csv"))
 customerData <- fread(paste0(filePath,"/QVI_purchase_behaviour.csv"))
 ```
@@ -70,72 +82,100 @@ We can use `str()` to look at the format of each column and see a sample of the
 data. As we have read in the dataset as a `data.table` object, we can also run
 `transactionData` in the console to see a sample of the data or use
 `head(transactionData)` to look at the first 10 rows.
-```{r Examining transaction data}
-#### Examine transaction data
+
+
+```{r }
+
 head(transactionData)
 ```
+
+
 
 ```{r Examining transaction data}
 #### Examine customer data
 head(customerData)
 ```
+
+
 Let's check if columns we would expect to be numeric are in numeric form and date
 columns are in date format.
+
+
 ```{r Convert DATE to date format}
 #### Convert DATE column to a date format
 #### A quick search online tells us that CSV and Excel integer dates begin on 30 Dec 1899
 transactionData$DATE <- as.Date(transactionData$DATE, origin = "1899-12-30")
 head(transactionData)
 ```
+
+
 We should check that we are looking at the right products by examining PROD_NAME.
+
+
 
 ```{r Summary of PROD_NAME}
 #### Examine PROD_NAME
 summary(transactionData$PROD_NAME)
-newPROD_NAME <- (transactionData$PROD_NAME)
-head(newPROD_NAME)
+PROD_NAME <- (transactionData$PROD_NAME)
+head(PROD_NAME)
+
 ```
+
 
 Looks like we are definitely looking at potato chips but how can we check that
 these are all chips? We can do some basic text analysis by summarising the
 individual words in the product name.
+
+
 ```{r Further examine PROD_NAME}
 #### Examine the words in PROD_NAME to see if there are any incorrect entries
 #### such as products that are not chips
-productWords <- data.table(unlist(strsplit(unique(transactionData[, PROD_NAME]), "
+productWords <- data.table(unlist(strsplit(unique(transactionData[, transactionData$PROD_NAME]), "
 ")))
 setnames(productWords, 'words')
+head(transactionData)
 ```
+
 
 As we are only interested in words that will tell us if the product is chips or
 not, let's remove all words with digits and special characters such as '&' from our
 set of product words. We can do this using `grepl()`.
 
+
+
 ```{r}
 # Remove digits, and special characters, and then sort the distinct words by frequency of occurrence.
 
 #### Removing digits
-No.digits <- data.table(gsub("\\w*[0-9]+\\w*", "", newPROD_NAME))
-head(No.digits)
+transactionData$PROD_NAME <- data.table(gsub("\\w*[0-9]+\\w*", "", transactionData$PROD_NAME))
+
+head(transactionData)
 ```
+
+
 
 ```{r}
 #### Removing special characters
 # as.data.frame(gsub("[[:punct:]]", "", as.matrix(df))) 
-No.specialchar.digits <- as.data.frame(gsub("[[:punct:]]", "", as.matrix(No.digits)))
-setnames(No.specialchar.digits, 'PROD_NAME_NO_CHAR')
-head(No.specialchar.digits)
+transactionData$PROD_NAME <- as.data.frame(gsub("[[:punct:]]", "", as.matrix(transactionData$PROD_NAME)))
+#setnames(No.specialchar.digits, 'PROD_NAME_NO_CHAR')
+head(transactionData)
 ```
+
 
 collapse column into one giant string
 
+
 ```{r}
-review_text <- paste(No.specialchar.digits$PROD_NAME_NO_CHAR, collapse=" ")
+review_text <- paste(transactionData$PROD_NAME, collapse=" ")
 ```
+
+
 
 ```{r}
 review_text
 ```
+
 
 
 ```{r}
@@ -143,6 +183,7 @@ review_text
 review_source <- VectorSource(review_text)
 corpus <- Corpus(review_source)
 ```
+
 
 
 ```{r}
@@ -157,51 +198,328 @@ corpus <- tm_map(corpus, removeWords, stopwords(kind = "en"))
 ```{r}
 # Making a document-term matrix
 dtm <- DocumentTermMatrix(corpus)
-dtm2 <- as.matrix(dtm)
-```
-
-
-```{r}
-# finding the most frequent term
-frequency <- colSums(dtm2)
-freq <- sort(frequency, decreasing = TRUE)
-freq
-```
-
-
-
-```{r}
-#### Let's look at the most common words by counting the number of times a word appears and
-# library(tm)
-# library(qdap)
-#library(tidyverse)
-#library(tidytext)
-
-
-#create stopwords DF
-rus_stopwords = data.frame(word = stopwords("ru"))
-
-
-new_df <- video %>% unnest_tokens(word, text) %>% anti_join(rus_stopwords)
-
-
-# - anti_join  - functoin to remove stopwords
-#video - is name of dataframe
-#word - is name of new field
-#text - is just a filed with our text
-
-frequency_dataframe = new_df %>% count(word) %>% arrange(desc(n))
-
-
-short_dataframe = head(frequency_dataframe, 20)
-
-
-ggplot(short_dataframe, aes(x = word, y = n, fill = word)) + geom_col() 
-
+#dtm2 <- as.matrix(dtm)
+m <- as.matrix(dtm)
+v <- sort(colSums(m),decreasing=TRUE)
+d <- data.frame(word = names(v),freq=v)
+head(d, 10)
+set.seed(1234)
+wordcloud(words = d$word, freq = d$freq, min.freq = 1,
+          max.words=500, random.order=FALSE, rot.per=0.35, 
+          colors=brewer.pal(8, "Dark2"))
 ```
 
 
 ```{r}
 #### sorting them by this frequency in order of highest to lowest frequency
+#### Let's look at the most common words by counting the number of times a word appears and
+# finding the most frequent term
+frequency <- colSums(dtm2)
+freq <- sort(frequency, decreasing = TRUE)
+head(freq, n = 20L)
+```
+
+wordcloud
+```{r}
+# library(wordcloud)
+words <- names(freq)
+
+wordcloud(words[1:100], freq[1:100])
+```
+
+There are salsa products in the dataset but we are only interested in the chips
+category, so let's remove these.
+
+
+
+```{r}
+#### Remove salsa products
+transactionData[, SALSA := grepl("salsa", tolower(PROD_NAME))]
+transactionData <- transactionData[SALSA == FALSE, ][, SALSA := NULL]
+head(transactionData)
+```
+
+
+
+```{r}
+review_text <- paste(transactionData$PROD_NAME, collapse=" ")
+
+review_source <- VectorSource(review_text)
+corpus <- Corpus(review_source)
+
+corpus <- tm_map(corpus, content_transformer(tolower))
+corpus <- tm_map(corpus, removePunctuation)
+corpus <- tm_map(corpus, stripWhitespace)
+corpus <- tm_map(corpus, removeWords, stopwords(kind = "en"))
+
+dtm <- DocumentTermMatrix(corpus)
+dtm2 <- as.matrix(dtm)
+
+frequency <- colSums(dtm2)
+freq <- sort(frequency, decreasing = TRUE)
+#head(freq, n = 20L)
+```
+
+
+```{r}
+
+head(freq, n = 20L)
+```
+
+
+
+```{r initial summary}
+#### Summarise the data to check for nulls and possible outliers
+summary(transactionData)
+```
+
+There are no nulls in the columns but product quantity appears to have an outlier
+which we should investigate further. Let's investigate further the case where 200
+packets of chips are bought in one transaction.
+
+
+```{r}
+#### Filter the dataset to find the outlier
+#library(ggplot2)
+
+ggplot(transactionData) +
+  aes(x ="", y = PROD_QTY) +
+  geom_boxplot(fill = "#0c4c8a") +
+  theme_minimal()
+```
+
+
+```{r}
+# library(dplyr)
+outliers <- transactionData %>% filter(PROD_QTY >= 199)
+outliers
+```
+
+
+
+```{r}
+#### Let's see if the customer has had other transactions
+customer_transactions <- transactionData %>% filter(LYLTY_CARD_NBR == 226000)
+customer_transactions
+```
+
+
+```{r}
+#### Filter out the customer based on the loyalty card number
+# remove rows in r - subset function with multiple conditions
+transactionData <- transactionData[!(transactionData$LYLTY_CARD_NBR==226000),]
+
+#df2<-df1[!(df1$Name=="George" | df1$Name=="Andrea"),]
+
+#df2
+
+transactionData$LYLTY_CARD_NBR
+```
+
+
+```{r}
+#### Re-examine transaction data
+summary(transactionData)
+```
+
+
+
+```{r}
+#### Count the number of transactions by date
+
+length(unique(transactionData[["DATE"]]))
+```
+
+
+There's only 364 rows, meaning only 364 dates which indicates a missing date. Let's
+create a sequence of dates from 1 Jul 2018 to 30 Jun 2019 and use this to create a
+chart of number of transactions over time to find the missing date.
+
+
+```{r fig.align = "center"}
+
+#### Create a sequence of dates and join this the count of transactions by date
+# Over to you - create a column of dates that includes every day from 1 Jul 2018 to 30 Jun 2019, and join it onto the data to fill in the missing day.
+# transactions_by_day <- 
+#         data.table(table(as.Date(transactionData$DATE)))
+#         setnames(transactions_by_day, c('DATE', 'N'), skip_absent=TRUE)
+transactions_by_day_2 <- transactionData[, .N, DATE][order(DATE)]
+transactions_by_day_2
+
+# transactions_by_day$DATE <- as.Date(transactions_by_day$DATE, origin = "1899-12-30")
+# print(transactions_by_day)
+```
+
+
+
+```{r fig.align = "center"}
+#### Setting plot themes to format graphs
+theme_set(theme_bw())
+theme_update(plot.title = element_text(hjust = 0.5))
+#### Plot transactions over time
+ggplot(transactions_by_day, aes(x = DATE, y = N)) +
+geom_line() +
+labs(x = "Day", y = "Number of transactions", title = "Transactions over time") +
+scale_x_date(breaks = "1 month") +
+theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+```
+
+
+```{r fig.align = "center"}
+#### Filter to December and look at individual days
+december <- transactions_by_day %>% select(DATE, N) %>% filter(DATE >= as.Date("2018-12-01") & DATE <= as.Date("2018-12-31"))
+december
+```
+
+
+```{r fig.align = "center"}
+#### Setting plot themes to format graphs
+theme_set(theme_bw())
+theme_update(plot.title = element_text(hjust = 0.5))
+#### Plot transactions over time
+ggplot(december, aes(x = DATE, y = N)) +
+geom_point() +
+labs(x = "Day", y = "Number of transactions", title = "Transactions over time") +
+scale_x_date(breaks = "1 day") +
+theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+```
+
+
+We can see that the increase in sales occurs in the lead-up to Christmas and that
+there are zero sales on Christmas day itself. This is due to shops being closed on
+Christmas day.
+Now that we are satisfied that the data no longer has outliers, we can move on to
+creating other features such as brand of chips or pack size from PROD_NAME. We will
+start with pack size.
+
+
+```{r Create pack size}
+#### Pack size
+#### We can work this out by taking the digits that are in PROD_NAME
+filePath <- "/Volumes/Seagate_Haykay/Quantium_Data_Analytics"
+transactionData2 <- fread(paste0(filePath,"/QVI_transaction_data.csv"))
+transactionData2[, PACK_SIZE := parse_number(PROD_NAME)]
+
+
+
+#### Always check your output
+#### Let's check if the pack sizes look sensible
+transactionData2[, .N, PACK_SIZE][order(N)]
+```
+The largest size is 380g and the smallest size is 70g - seems sensible!
+
+```{r }
+#### Let's plot a histogram of PACK_SIZE since we know that it is a categorical variable and not a continuous variable even though it is numeric.
+# Plot a histogram showing the number of transactions by pack size.
+
+PACK_SIZE <- transactionData2$PACK_SIZE
+h <- hist(PACK_SIZE,
+main="Number of Transaction by Pack Size",
+xlab="PACK SIZE",
+xlim=c(60,390),
+ylim=c(1400,120000),
+breaks=10,
+col="skyblue",
+# freq=FALSE
+)
+text(h$mids,h$counts,labels=h$counts, adj=c(0.5, -0.5))
+```
+
+Now to create brands, we can use the first word in PROD_NAME to work out the brand
+name...
+```{r Create brand name}
+#### Brands
+# Over to you! Create a column which contains the brand of the product, by extracting it from the product name.
+# library(stringr)
+transactionData2$BRAND <- str_extract(transactionData2$PROD_NAME,"(\\w+)") 
+head(transactionData2, 20L)
+```
+```{r}
+transactionData2[, .N, BRAND][order(BRAND)]
+
+```
+Some of the brand names look like they are of the same brands - such as RED and
+RRD, which are both Red Rock Deli chips. Let's combine these together.
+
+```{r Clean brand names}
+#### Clean brand names
+transactionData2[BRAND == "Red", BRAND := "RRD"]
+transactionData2[BRAND == "Infzns", BRAND := "Infuzions"]
+transactionData2[BRAND == "Dorito", BRAND := "Doritos"]
+transactionData2[BRAND == "Natural", BRAND := "NCC"]
+transactionData2[BRAND == "Smith", BRAND := "Smiths"]
+transactionData2[BRAND == "Snbts", BRAND := "Sunbites"]
+transactionData2[BRAND == "Grain", BRAND := "GrnWves"]
+transactionData2[BRAND == "WW", BRAND := "Woolworths"]
+transactionData2[, .N, BRAND][order(BRAND)]
+
+```
+### Examining customer data
+Now that we are happy with the transaction dataset, let's have a look at the
+customer dataset.
+
+```{r 1 Exploratory data analysis}
+#### Examining customer data
+summary(customerData)
+```
+
+
+```{r}
+# distributions of LYLTY_CARD_NBR key columns
+# library(ggplot2)
+# library(gganimate)
+# library(tidyverse)
+
+ggplot(customerData, aes(x=as.factor(PREMIUM_CUSTOMER), fill=as.factor(PREMIUM_CUSTOMER) )) + 
+  geom_bar( ) +
+  scale_fill_brewer(palette = "Set1") +
+  theme(legend.position="none") +
+  coord_flip() +
+  ggtitle("Customers")
+```
+
+```{r}
+ggplot(customerData, aes(x=as.factor(LIFESTAGE), fill=as.factor(LIFESTAGE) )) + 
+  geom_bar( ) +
+  scale_fill_brewer(palette = "Set1") +
+  theme(legend.position="none") +
+  coord_flip() +
+  ggtitle("LIFESTAGE")
+```
+As the number of rows in `data` is the same as that of `transactionData`, we can be
+sure that no duplicates were created. This is because we created `data` by setting
+`all.x = TRUE` (in other words, a left join) which means take all the rows in
+`transactionData` and find rows with matching values in shared columns and then
+joining the details in these rows to the `x` or the first mentioned table.
+
+```{r}
+#### Merge transaction data to customer data
+data <- merge(transactionData2, customerData, all.x = TRUE)
+data
+# total <- merge(transactionData2, customerData,by="LYLTY_CARD_NBR")
+```
+Let's also check if some customers were not matched on by checking for nulls.
+```{r Check for missing customer details}
+# summary(data)
+
+sum(is.na(data))
+
+# Find missing values in a column of a data frame
+
+# which(is.na(expl_data1$x1))
+
+
+# In order to get the positions of each column in your data set, you can use the apply() function
+
+# apply(is.na(expl_data1), 2, which) 
+
+```
+
+Note that if you are continuing with Task 2, you may want to retain this dataset which you can write out as a csv
+
+```{r Code to save dataset as a csv}
+filePath <- "/Volumes/Seagate_Haykay/Quantium_Data_Analytics"
+fwrite(data, paste0(filePath,"QVI_data.csv"))
+write_csv(data,"/Volumes/Seagate_Haykay/Quantium_Data_Analytics/QVI_data.csv")
 ```
 
