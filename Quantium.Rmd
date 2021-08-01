@@ -85,7 +85,6 @@ data. As we have read in the dataset as a `data.table` object, we can also run
 
 
 ```{r }
-
 head(transactionData)
 ```
 
@@ -105,6 +104,10 @@ columns are in date format.
 #### Convert DATE column to a date format
 #### A quick search online tells us that CSV and Excel integer dates begin on 30 Dec 1899
 transactionData$DATE <- as.Date(transactionData$DATE, origin = "1899-12-30")
+
+
+transactionData$TOT_SALES <- str_replace(transactionData$TOT_SALES, ",", ".")
+transactionData$TOT_SALES <- as.double(transactionData$TOT_SALES)
 head(transactionData)
 ```
 
@@ -116,9 +119,10 @@ We should check that we are looking at the right products by examining PROD_NAME
 ```{r Summary of PROD_NAME}
 #### Examine PROD_NAME
 summary(transactionData$PROD_NAME)
-PROD_NAME <- (transactionData$PROD_NAME)
-head(PROD_NAME)
 
+PROD_NAME <- (transactionData$PROD_NAME)
+
+head(PROD_NAME)
 ```
 
 
@@ -147,7 +151,7 @@ set of product words. We can do this using `grepl()`.
 # Remove digits, and special characters, and then sort the distinct words by frequency of occurrence.
 
 #### Removing digits
-transactionData$PROD_NAME <- data.table(gsub("\\w*[0-9]+\\w*", "", transactionData$PROD_NAME))
+transactionData$PROD_NAME_NO_CHAR <- data.table(gsub("\\w*[0-9]+\\w*", "", transactionData$PROD_NAME))
 
 head(transactionData)
 ```
@@ -157,8 +161,8 @@ head(transactionData)
 ```{r}
 #### Removing special characters
 # as.data.frame(gsub("[[:punct:]]", "", as.matrix(df))) 
-transactionData$PROD_NAME <- as.data.frame(gsub("[[:punct:]]", "", as.matrix(transactionData$PROD_NAME)))
-#setnames(No.specialchar.digits, 'PROD_NAME_NO_CHAR')
+transactionData$PROD_NAME_NO_CHAR <- as.data.frame(gsub("[[:punct:]]", "", as.matrix(transactionData$PROD_NAME_NO_CHAR)))
+# setnames(No.specialchar.digits, 'PROD_NAME_NO_CHAR')
 head(transactionData)
 ```
 
@@ -167,13 +171,13 @@ collapse column into one giant string
 
 
 ```{r}
-review_text <- paste(transactionData$PROD_NAME, collapse=" ")
+review_text <- paste(transactionData$PROD_NAME_NO_CHAR, collapse=" ")
 ```
 
 
 
 ```{r}
-review_text
+# review_text
 ```
 
 
@@ -214,18 +218,11 @@ wordcloud(words = d$word, freq = d$freq, min.freq = 1,
 #### sorting them by this frequency in order of highest to lowest frequency
 #### Let's look at the most common words by counting the number of times a word appears and
 # finding the most frequent term
-frequency <- colSums(dtm2)
+frequency <- colSums(m)
 freq <- sort(frequency, decreasing = TRUE)
 head(freq, n = 20L)
 ```
 
-wordcloud
-```{r}
-# library(wordcloud)
-words <- names(freq)
-
-wordcloud(words[1:100], freq[1:100])
-```
 
 There are salsa products in the dataset but we are only interested in the chips
 category, so let's remove these.
@@ -234,7 +231,7 @@ category, so let's remove these.
 
 ```{r}
 #### Remove salsa products
-transactionData[, SALSA := grepl("salsa", tolower(PROD_NAME))]
+transactionData[, SALSA := grepl("salsa", tolower(PROD_NAME_NO_CHAR))]
 transactionData <- transactionData[SALSA == FALSE, ][, SALSA := NULL]
 head(transactionData)
 ```
@@ -242,7 +239,7 @@ head(transactionData)
 
 
 ```{r}
-review_text <- paste(transactionData$PROD_NAME, collapse=" ")
+review_text <- paste(transactionData$PROD_NAME_NO_CHAR, collapse=" ")
 
 review_source <- VectorSource(review_text)
 corpus <- Corpus(review_source)
@@ -313,7 +310,7 @@ transactionData <- transactionData[!(transactionData$LYLTY_CARD_NBR==226000),]
 
 #df2
 
-transactionData$LYLTY_CARD_NBR
+# transactionData$LYLTY_CARD_NBR
 ```
 
 
@@ -340,14 +337,15 @@ chart of number of transactions over time to find the missing date.
 
 #### Create a sequence of dates and join this the count of transactions by date
 # Over to you - create a column of dates that includes every day from 1 Jul 2018 to 30 Jun 2019, and join it onto the data to fill in the missing day.
-# transactions_by_day <- 
-#         data.table(table(as.Date(transactionData$DATE)))
-#         setnames(transactions_by_day, c('DATE', 'N'), skip_absent=TRUE)
+transactions_by_day <-
+        data.table(table(as.Date(transactionData$DATE)))
+        setnames(transactions_by_day, c('DATE', 'N'), skip_absent=TRUE)
+        
 transactions_by_day_2 <- transactionData[, .N, DATE][order(DATE)]
 transactions_by_day_2
 
-# transactions_by_day$DATE <- as.Date(transactions_by_day$DATE, origin = "1899-12-30")
-# print(transactions_by_day)
+transactions_by_day$DATE <- as.Date(transactions_by_day$DATE, origin = "1899-12-30")
+print(transactions_by_day)
 ```
 
 
@@ -434,6 +432,9 @@ name...
 transactionData2$BRAND <- str_extract(transactionData2$PROD_NAME,"(\\w+)") 
 head(transactionData2, 20L)
 ```
+
+
+
 ```{r}
 transactionData2[, .N, BRAND][order(BRAND)]
 
@@ -494,6 +495,7 @@ joining the details in these rows to the `x` or the first mentioned table.
 
 ```{r}
 #### Merge transaction data to customer data
+transactionData2$DATE <- as.Date(transactionData2$DATE, origin = "1899-12-30")
 data <- merge(transactionData2, customerData, all.x = TRUE)
 data
 # total <- merge(transactionData2, customerData,by="LYLTY_CARD_NBR")
@@ -521,5 +523,382 @@ Note that if you are continuing with Task 2, you may want to retain this dataset
 filePath <- "/Volumes/Seagate_Haykay/Quantium_Data_Analytics"
 fwrite(data, paste0(filePath,"QVI_data.csv"))
 write_csv(data,"/Volumes/Seagate_Haykay/Quantium_Data_Analytics/QVI_data.csv")
+```
+
+
+## Data analysis on customer segments
+Now that the data is ready for analysis, we can define some metrics of interest to
+the client:
+- Who spends the most on chips (total sales), describing customers by lifestage and
+how premium their general purchasing behaviour is
+- How many customers are in each segment
+- How many chips are bought per customer by segment
+- What's the average chip price by customer segment
+We could also ask our data team for more information. Examples are:
+- The customer's total spend over the period and total spend for each transaction
+to understand what proportion of their grocery spend is on chips
+- Proportion of customers in each customer segment overall to compare against the
+mix of customers who purchase chips
+
+
+```{r fig.width = 10, fig.align = "center"}
+# library(dplyr)
+#### Total sales by LIFESTAGE and PREMIUM_CUSTOMER
+library(reshape2)
+        
+total_sales_lifestage_customers <- select(data, TOT_SALES, LIFESTAGE, PREMIUM_CUSTOMER)
+
+total_sales_lifestage_customers$R_TOT_SALES <- str_replace(total_sales_lifestage_customers$TOT_SALES,",",".")
+
+total_sales_lifestage_customers$R_TOT_SALES <- as.double(total_sales_lifestage_customers$R_TOT_SALES)
+total_sales_lifestage_customers$TOT_SALES <- NULL
+head(total_sales_lifestage_customers)
+
+
+total_sales_plot <- total_sales_lifestage_customers %>%
+  group_by(LIFESTAGE, PREMIUM_CUSTOMER) %>%
+  summarise(sales = sum(R_TOT_SALES)) %>%
+  arrange(.,  sales)
+
+total_sales_plot
+```
+
+
+```{r fig.width = 10, fig.align = "center"}}
+# bar plot, fill to discrete column, color to static value
+ggplot(total_sales_plot, aes(LIFESTAGE, sales, fill = PREMIUM_CUSTOMER)) + geom_col(position = "dodge") + coord_flip()
+```
+
+```{r fig.width = 10, fig.align = "center"}}
+#### Number of customers by LIFESTAGE and PREMIUM_CUSTOMER
+# Calculate the summary of number of customers by those dimensions and create a plot.
+no_of_customers_lifestage_customers <- select(data, LIFESTAGE, PREMIUM_CUSTOMER)
+
+
+
+total_customers <- no_of_customers_lifestage_customers %>%
+  group_by(LIFESTAGE, PREMIUM_CUSTOMER) %>%
+  summarise(Count = n()) %>%
+  arrange(., Count)
+
+ggplot(total_customers, aes(LIFESTAGE, Count, fill = PREMIUM_CUSTOMER)) + 
+  geom_col(position = "dodge") +
+  labs(title = "No. of Customers by LIFESTAGE and PREMIUM_CUSTOMER") +
+  ylim(0, 30000) +
+  scale_y_continuous(breaks = seq(from = 0, to = 30000, by = 5000)) +
+  coord_flip()
+```
+There are more Mainstream - young singles/couples and Mainstream - retirees who buy
+chips. This contributes to there being more sales to these customer segments but
+this is not a major driver for the Budget - Older families segment.
+
+Higher sales may also be driven by more units of chips being bought per customer.
+Let's have a look at this next.
+
+```{r fig.width = 10, fig.align = "center"}
+#### Average number of units per customer by LIFESTAGE and PREMIUM_CUSTOMER
+
+# Calculate and plot the average number of units per customer by those two dimensions.
+average_sales_lifestage_customers <- select(data, TOT_SALES, LIFESTAGE, PREMIUM_CUSTOMER)
+average_sales_lifestage_customers$TOT_SALES <- str_replace(average_sales_lifestage_customers$TOT_SALES, ",", ".")
+average_sales_lifestage_customers$TOT_SALES <- as.double(average_sales_lifestage_customers$TOT_SALES)
+
+average_sales_plot <- average_sales_lifestage_customers %>%
+  group_by(LIFESTAGE, PREMIUM_CUSTOMER) %>%
+  summarise(ave_sales = mean(TOT_SALES)) %>%
+  arrange(.,  ave_sales)
+average_sales_plot
+```
+
+```{r}
+ggplot(average_sales_plot, aes(LIFESTAGE, ave_sales, fill = PREMIUM_CUSTOMER)) + 
+  geom_col(position = "dodge") +
+  labs(title = "Average number of units per customer by LIFESTAGE and PREMIUM_CUSTOMER") +
+  ylim(6, 8) +
+  scale_y_continuous(breaks = seq(from = 0, to = 8, by = 1)) +
+  coord_flip()
+```
+
+```{r fig.width = 10, fig.align = "center"}
+#### Average price per unit by LIFESTAGE and PREMIUM_CUSTOMER
+# Calculate and plot the average price per unit sold (average sale price) by those two customer dimensions.
+average_price_lifestage_customers <- select(data, LIFESTAGE, PREMIUM_CUSTOMER, TOT_SALES, PROD_QTY)
+
+average_price_lifestage_customers$TOT_SALES <- str_replace(average_sales_lifestage_customers$TOT_SALES, ",", ".")
+
+average_price_lifestage_customers$TOT_SALES <- as.double(average_sales_lifestage_customers$TOT_SALES)
+
+average_price_lifestage_customers$AVG_PRICE_PER_UNIT <- with(average_price_lifestage_customers, TOT_SALES / PROD_QTY)
+
+
+average_price_per_unit <- average_price_lifestage_customers %>%
+  group_by(LIFESTAGE, PREMIUM_CUSTOMER) %>%
+  summarise(ave_price = mean(AVG_PRICE_PER_UNIT)) %>%
+  arrange(.,  ave_price)
+average_price_per_unit
+#avg_price_plot <- as.data.frame(average_price_lifestage_customers)
+# ggplot(average_price_lifestage_customers, aes(LIFESTAGE, AVG_PRICE_PER_UNIT, fill = PREMIUM_CUSTOMER)) + 
+#   geom_col(position = "dodge") +
+#   labs(title = "Average price per unit by LIFESTAGE and PREMIUM_CUSTOMER") +
+#   coord_flip()
+```
+
+
+What do you need to run an independent t-test?
+In order to run an independent t-test, you need the following:
+
+One independent, categorical variable that has two levels/groups.
+One continuous dependent variable.
+```{r}
+#### Perform an independent t-test between mainstream vs premium and budget midage and young singles and couples
+# Perform a t-test to see if the difference is significant.
+
+# Let's group our data into mainstream and non-mainstream
+average_price_per_unit[average_price_per_unit == "Budget" | average_price_per_unit == "Premium"] <- "nonMainstream"
+
+mainstream_compare <- average_price_per_unit %>% filter(LIFESTAGE == 'YOUNG SINGLES/COUPLES' | LIFESTAGE == 'MIDAGE SINGLES/COUPLES', PREMIUM_CUSTOMER == 'Mainstream')
+mainstream_compare 
+
+
+non_mainstream_compare <- average_price_per_unit %>% filter(LIFESTAGE == 'YOUNG SINGLES/COUPLES' | LIFESTAGE == 'MIDAGE SINGLES/COUPLES', PREMIUM_CUSTOMER == 'nonMainstream')
+
+non_mainstream_compare <- non_mainstream_compare %>%
+  group_by(LIFESTAGE, PREMIUM_CUSTOMER) %>%
+  summarise(ave_price = mean(ave_price)) %>%
+  arrange(.,  ave_price)
+non_mainstream_compare
+
+```
+
+
+```{r}
+# p <- ggplot(mainstream_compare , aes(x=ave_price)) + 
+#   geom_histogram(binwidth=0.01)
+# p
+```
+
+
+
+
+
+
+```{r}
+# mainstream <-  mainstream_compare$ave_price
+# mainstream 
+# non_mainstream <- non_mainstream_compare$ave_price 
+# non_mainstream
+
+
+compare_plots <- rbind(mainstream_compare, non_mainstream_compare)
+compare_plots
+
+# ggplot(compare_plots, aes(PREMIUM_CUSTOMER, fill = ave_price)) +
+#    geom_histogram(alpha = 0.5, aes(y = ..density..), position = 'identity')
+```
+
+independent t-test
+t.test (dependentVariable ~ independentVariable, var.equal=TRUE, data = dataframe)
+
+
+```{r}
+
+descriptives = compare_plots %>% group_by(PREMIUM_CUSTOMER) %>% summarise(mean = mean(ave_price), sd = sd(ave_price), n = n())
+descriptives
+
+print("===============================================")
+
+
+mean_difference = descriptives[1,2] - descriptives[2,2]
+
+mean_difference
+
+print("===============================================")
+t.test (ave_price ~ PREMIUM_CUSTOMER, var.equal=TRUE, data = compare_plots)
+```
+The results show that the mean price per unit  in the "mainstream" was 4.04$ (to 2 decimal places) with a standard deviation of 0.05$. There were 2 participants in the mainstream group (Young and midage)
+
+The mean price per unit  in the "non-mainstream" was 3.69$ (to 2 decimal places) with a standard deviation of 0.07$. There were 2 participants in the non-mainstream group (Young and midage).
+
+Therefore, there was a mean difference of 0.34$ between the mainstream and non-mainstream group, with price per unit  value 0.34 higher in the control group (i.e., 4.035793 – 3.691153 = 0.34). The 95% confidence interval (CI) of the mean difference was from 0.08$ (for the lower bound value; to 2 decimal places) to 0.61$ (for the upper bound value).
+
+Independent-samples t-test
+
+From the t.test output above, the obtained t-value (t) is 5.64 (to 2 decimal places) and the degrees of freedom (df) are 2 (i.e., for an independent-samples t-test the degrees of freedom are equal to the sample size minus 2, so in our example, 4 – 2 = 19). The statistical significance (p-value) of the independent-samples t-test is 0.03.
+
+The p-value is used to determine if there is a statistically significant difference in the mean score of the dependent variable between the two independent groups. If p < .05 (i.e., if p is less than .05), there is a statistically significant difference in mean price per unit between the mainstream and non-mainstream group. If p > .05 (i.e., if p is greater than .05), there is not a statistically significant difference in mean price per unit between the mainstream and non-mainstream group. Since p = .03 in our example, there is a statistically significant difference in mean price per unit between the mainstream and non-mainstream group (i.e., there is a mean difference in the population and not only the sample that was studied).
+
+
+
+
+## Deep dive into specific customer segments for insights
+We have found quite a few interesting insights that we can dive deeper into.
+We might want to target customer segments that contribute the most to sales to
+retain them or further increase sales. Let's look at Mainstream - young
+singles/couples. For instance, let's find out if they tend to buy a particular
+brand of chips.
+
+```{r fig.align = "center"}
+#### Deep dive into Mainstream, young singles/couples
+# Work out of there are brands that these two customer segments prefer more than others. You could use a technique called affinity analysis or a-priori analysis (or any other method if you prefer)
+
+mainstream_YSC <- data %>% 
+  filter(LIFESTAGE == 'YOUNG SINGLES/COUPLES', PREMIUM_CUSTOMER == 'Mainstream')
+
+mainstream_YSC <- select(mainstream_YSC, LYLTY_CARD_NBR, LIFESTAGE, PREMIUM_CUSTOMER, BRAND , TOT_SALES, PROD_QTY, PROD_NAME)
+
+mainstream_YSC$TOT_SALES <- str_replace(mainstream_YSC$TOT_SALES, ",", ".")
+
+mainstream_YSC$TOT_SALES <- as.double(mainstream_YSC$TOT_SALES)
+mainstream_YSC_New <- mainstream_YSC
+
+
+mainstream_YSC_New
+
+
+
+# mainstream_YSC_New <- mainstream_YSC_New %>%
+#   group_by(BRAND) %>%
+#   summarise(tot_sales_by_brand = sum(TOT_SALES)) %>%
+#   arrange(.,  tot_sales_by_brand)
+# mainstream_YSC_New
+
+
+```
+
+
+```{r}
+
+# library(arules)
+# library(arulesViz)
+# library(IRdisplay)
+
+
+mainstream_YSC_New
+```
+
+
+```{r}
+
+# mainstream_YSC_New$LIFESTAGE <- NULL
+# mainstream_YSC_New$PREMIUM_CUSTOMER <- NULL
+# mainstream_YSC_New$TOT_SALES <- NULL
+# mainstream_YSC_New$PROD_QTY <- NULL
+# mainstream_YSC_New$PROD_NAME <- NULL
+
+head(mainstream_YSC_New)
+
+```
+
+
+
+```{r Getting the shopping baskets}
+# mainstream_YSC_New_2 <- mainstream_YSC_New %>%
+#   group_by(LYLTY_CARD_NBR) %>%
+#      mutate(bars_by_foo = paste0(BRAND, collapse = ","))
+# 
+# mainstream_YSC_New_2$BRAND <- NULL
+
+
+mainstream_YSC_New_2 <- mainstream_YSC_New %>%
+  group_by(LYLTY_CARD_NBR) %>%
+     summarise(basket = as.vector(list(BRAND)))
+str(mainstream_YSC_New_2)
+```
+
+
+
+
+
+```{r compute transactions}
+transactions <- as(mainstream_YSC_New_2$basket, "transactions")
+hist(size(transactions), breaks = 0:20)
+```
+
+
+```{r more detailed graph}
+par(mfrow=c(1,1))
+
+hist(size(transactions), breaks = 0:20, xaxt="n", ylim = c(0, 4000),
+     main = "Number of Purchases per Customer", xlab = "Numboe or Items")
+axis(1, at=seq(0,20,by=5), cex.axis=0.7)
+
+mtext(paste("Total:", length(transactions), "customers,", sum(size(transactions)), "brands purchases"))
+```
+
+
+
+```{r}
+basketSizes <- size(transactions)
+summary(basketSizes)
+
+quantile(basketSizes, probs = seq(0,1,0.05))
+```
+
+
+
+
+```{r get average customer purchase amount}
+meanBasketAmt <- aggregate(TOT_SALES ~ LYLTY_CARD_NBR, data=mainstream_YSC_New, sum)
+summary(meanBasketAmt)
+```
+
+```{r get average price per item}
+meanBasketPrice <- aggregate(TOT_SALES ~ LYLTY_CARD_NBR, data=mainstream_YSC_New, mean)
+summary(meanBasketPrice)
+```
+
+
+```{r find out which brands customers are buying}
+item_frequencies <- itemFrequency(transactions)
+sum(item_frequencies)
+
+brandCount <- round((item_frequencies/sum(item_frequencies)) * sum(basketSizes))
+summary(brandCount)
+```
+
+
+```{r get top 10 brands in the basket}
+orderedProducts <- sort(brandCount, decreasing = TRUE)
+orderedProducts[1:10]
+```
+
+```{r How many times does the most purchased brand appear in the cart = 38 %}
+orderedProducts[1]/dim(transactions)[1]
+```
+
+
+Mining Associations With Apriori
+
+Mine frequent itemsets, association rules or association hyperedges using the Apriori algorithm. The Apriori algorithm employs level-wise search for frequent itemsets. The implementation of Apriori used includes some improvements (e.g., a prefix tree and item sorting).
+
+```{r Plot the top affinity brands}
+# Get affinity plot and data using Apriori Algorithms
+# support <- 0.1
+# support <- 0.05
+
+support <- 0.05
+
+itemsets <- apriori(transactions, parameter = list(target = "frequent itemsets", supp=support, minlen=2), control = list(verbose=FALSE)) 
+par(mar=c(5,18,2,2)+.1)
+
+sets_order_supp <- DATAFRAME(sort(itemsets, by="support", decreasing = F))
+
+barplot(sets_order_supp$support, names.arg=sets_order_supp$items, xlim=c(0,0.12), horiz =T, las = 2, cex.names = .6, main= "Frequent Brands")
+
+mtext(paste("support:", support), padj = .8)
+```
+
+
+```{r use apriori algorithm to determine rules - number of affinities, and then output the top 30 to a csv file}
+brand_baskets <- transactions[basketSizes]
+
+num <- 10000/dim(brand_baskets)[1] # Number is greater than 1 then use support above 0.02
+num
+rules <- apriori(brand_baskets, parameter = list(supp=0.05, conf = 0.01, maxlen=3), control = list(verbose=FALSE))
+plot(rules)
+```
+
+```{r}
+inspect(sort(rules, by="lift")[1:10])
 ```
 
